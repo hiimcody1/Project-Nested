@@ -6,7 +6,7 @@
 
 	// ---------------------------------------------------------------------------
 
-	.macro	Interpret_Indirect_Switch		OpcodeName, IsLda, IndexRegister
+	.macro	Interpret_Indirect_Switch		OpcodeName, IsLdaY, IndexRegister
 		.align	0x100
 Interpret__{0}Indirect{2}_Page:
 		// Break this page into segments of 0x20 bytes
@@ -37,7 +37,16 @@ b_{0}_40_e:
 			{
 				sta	$_Memory_NesBank
 			}
-			lda	#0xb0
+			SelfMod_Begin
+			SelfMod_IfSet	RomInfo_MemoryEmulation, RomInfo_MemEmu_StaticSram
+			SelfMod_Do	+b_1__
+				lda	#0xb0
+				pha
+				plb
+				rtl
+b_1__:
+			SelfMod_End
+			lda	$_Program_Bank_Sram+2
 			pha
 			plb
 			rtl
@@ -119,7 +128,16 @@ b_sta_40_e:
 
 	SegmentNext
 		sta	$_Memory_NesBank
-		lda	#0xb0
+		SelfMod_Begin
+		SelfMod_IfSet	RomInfo_MemoryEmulation, RomInfo_MemEmu_StaticSram
+		SelfMod_Do	+b_1
+			lda	#0xb0
+			pha
+			plb
+			rtl
+b_1:
+		SelfMod_End
+		lda	$_Program_Bank_Sram+2
 		pha
 		plb
 		rtl
@@ -149,7 +167,7 @@ b_sta_e0_e:
 	Interpret_Indirect_Switch	And, 0, "X"
 	Interpret_Indirect_Switch	Eor, 0, "X"
 	Interpret_Indirect_Switch	Adc, 0, "X"
-	Interpret_Indirect_Switch	Lda, 1, "X"
+	Interpret_Indirect_Switch	Lda, 0, "X"
 	Interpret_Indirect_Switch	Cmp, 0, "X"
 	Interpret_Indirect_Switch	Sbc, 0, "X"
 
@@ -174,7 +192,16 @@ b_sta_40_e:
 
 	SegmentNext
 		sta	$_Memory_NesBank
-		lda	#0xb0
+		SelfMod_Begin
+		SelfMod_IfSet	RomInfo_MemoryEmulation, RomInfo_MemEmu_StaticSram
+		SelfMod_Do	+b_1
+			lda	#0xb0
+			pha
+			plb
+			rtl
+b_1:
+		SelfMod_End
+		lda	$_Program_Bank_Sram+2
 		pha
 		plb
 		rtl

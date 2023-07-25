@@ -869,12 +869,9 @@ IO__w2007_skip00:
 		lda	$_NameTable_Remap_Main-0x20,x
 		xba
 		lda	$_IO_PPUADDR
-		rep	#0x11
-		.mx	0x20
-		tax
-
 		rep	#0x10
 		.mx	0x20
+		tax
 
 		lda	$_IO_Temp
 		cmp	$=Nes_Nametables-0x2000,x
@@ -2191,8 +2188,8 @@ IO__w4015_in:
 	php
 	xba
 
-	lda	$_IO_Temp
 IO__w4015_in2:
+	lda	$_IO_Temp
 	eor	#0xff
 	and	#0x1f
 	trb	$_Sound_NesRegs+0x15
@@ -2228,6 +2225,15 @@ b_1:
 		// Channel 3
 		stz	$_Sound_NesRegs+0xc
 		stz	$_Sound_noise_length
+b_1:
+
+	lsr	$_IO_Temp
+	bcc	$+b_1
+		// Channel 4
+		lda	#0x10
+		tsb	$_Sound_NesRegs+0x15
+		bne	$+b_1
+			tsb	$_Sound_ExtraControl
 b_1:
 
 	xba

@@ -27,9 +27,9 @@ RomInfo_Mapper:
 
 	// Starting SNES banks for PRG and CHR
 RomInfo_StartBankPRG:
-	.data8	0x87
+	.data8	0x88
 RomInfo_StartBankCHR:
-	.data8	0xc7
+	.data8	0xc8
 
 	// Cartridge flags
 RomInfo_CartFlags:
@@ -38,7 +38,7 @@ RomInfo_CartFlags:
 
 	// 16 bits of "Memory emulation" flags
 RomInfo_MemoryEmulation:
-	.data16	0x002f
+	.data16	0x000f
 	.def	RomInfo_MemEmu_Load					0x0001
 	.def	RomInfo_MemEmu_Store				0x0002
 	.def	RomInfo_MemEmu_AbsBank				0x0004
@@ -50,7 +50,7 @@ RomInfo_MemoryEmulation:
 RomInfo_PrgBankNumbers:
 	.data8	0,0,0,0
 
-	// Which bits of PRG count towards bank boundaries
+	// Which bits of memory count towards PRG bank boundaries
 RomInfo_PrgBankingMask:
 	.data16	0
 
@@ -174,12 +174,18 @@ RomInfo_InputFlags:
 RomInfo_InputMap:
 	.data8	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
 
+RomInfo_ReservedSnesBanks:
+	.data8	0x00, 0x00
+
+RomInfo_RomCacheBankCount:
+	.data8	4
+
 	// ---------------------------------------------------------------------------
 
 	// Version number
-	[80ffdB] = 0x07							// !
+	[80ffdB] = 0x08							// !
 	.macro	RomInfo_VersionString
-		.string0	"1.7"					// !
+		.string0	"1.8"					// !
 	.endm
 
 RomInfo_Title:
@@ -291,6 +297,11 @@ RomInfo_Description:
 
 		RomInfo_DefineMac	"private readonly hex byte MemoryEmulation.StaticRange : Static range", RomInfo_StaticRanges, 0
 
+		RomInfo_SummaryMac	"Defines RAM range 0x6000-0x7fff as static."
+		RomInfo_SummaryMac	""
+		RomInfo_SummaryMac	"Improves performance slightly since v1.6"
+		RomInfo_DefineMac	"public bool MemoryEmulation.StaticRange_60 : Static SRAM", RomInfo_MemoryEmulation, RomInfo_MemEmu_StaticSram
+
 		RomInfo_SummaryMac	"Defines ROM range 0x8000-0x9fff as static."
 		RomInfo_SummaryMac	"May improve compatibility."
 		RomInfo_SummaryMac	""
@@ -314,6 +325,13 @@ RomInfo_Description:
 		RomInfo_SummaryMac	""
 		RomInfo_SummaryMac	"Improves performance slightly since v1.6"
 		RomInfo_DefineMac	"public bool MemoryEmulation.StaticRange_e0 : Static range e000", RomInfo_StaticRanges, 0x80
+
+		RomInfo_SummaryMac	"Number of SRAM banks used for ROM cache."
+		RomInfo_SummaryMac	""
+		RomInfo_SummaryMac	"Requires SRAM size over 16KB."
+		RomInfo_SummaryMac	"May cause major slowdowns if this value is too low. Max 30."
+		RomInfo_SummaryMac	"May cause 'out of memory' errors if this value is too high."
+		RomInfo_DefineMac	"public mapper<69> byte MemoryEmulation.RomCacheBankCount : PRG ROM cache bank count", RomInfo_RomCacheBankCount, 0
 
 	RomInfo_DefineMac	"public void Tab_Cartridge : Cartridge settings.", 0, 0
 
@@ -517,7 +535,7 @@ RomInfo_Description:
 		RomInfo_DefineMac	"public bool SyncPpuStatusToSnes : Sync PPUSTATUS to SNES.", RomInfo_SyncPpuStatusToSnes, 0x80
 
 		RomInfo_SummaryMac	"Determines how many lines to skip after an IRQ hit."
-		RomInfo_DefineMac	"public mapper<4> byte IrqOffset : Mapper IRQ hit offset.", RomInfo_IrqOffset, 0
+		RomInfo_DefineMac	"public mapper<4,69> byte IrqOffset : Mapper IRQ hit offset.", RomInfo_IrqOffset, 0
 
 	RomInfo_DefineMac	"public void Tab_Ppu : PPU emulation.", 0, 0
 
@@ -550,6 +568,13 @@ RomInfo_Description:
 		RomInfo_DefineMac	"private global byte[12] Input.Map", RomInfo_InputMap, 0
 
 		RomInfo_DefineMac	"public Button CustomInput : Custom input", Zero, 0
+
+	RomInfo_DefineMac	"public void Tab_Enhancement : SNES enhancement pack settings.", 0, 0
+
+		RomInfo_SummaryMac	"Bank number must be between $c8-$ff or $40-$7d."
+		RomInfo_SummaryMac	"Addresses $0000-$7fff within each bank is then free to use."
+		RomInfo_SummaryMac	"Low range of fast ROM is $c8 but subject to change. Avoid using $c8-$ce if possible."
+		RomInfo_DefineMac	"public hex byte[2] Enhance.ReservedBanks : Reserved SNES banks", RomInfo_ReservedSnesBanks, 0
 
 	RomInfo_DefineMac	"public void Tab_Gui : Graphical user interface settings.", 0, 0
 

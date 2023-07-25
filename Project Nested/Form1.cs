@@ -363,7 +363,7 @@ namespace Project_Nested
                         MessageBox.Show(
                             "CRC32 mismatch.\n\n" +
                             "Settings will be loaded but game may have issues or not work.\n\n" +
-                            $"Game CRC32: {(sender2 as Injector).GetCrc32():x8}\n" +
+                            $"Game CRC32: {(sender2 as Injector).GetRomCrc32():x8}\n" +
                             $"Pasting settings for CRC32: {e2.Crc32:x8}\n",
                             "Warning");
                     }
@@ -466,6 +466,9 @@ namespace Project_Nested
         /// <returns>True if a valid profile was selected.</returns>
         private bool SelectProfile(string title, bool autoComplete)
         {
+            // Unload selected profile
+            comboGameProfile.SelectedIndex = comboGameProfile.FindStringExact(NO_PROFILE_TEXT);
+
             if (!autoComplete)
             {
                 // Find exact match
@@ -643,8 +646,7 @@ namespace Project_Nested
                 }
                 else if (selected.FilePath == NO_PROFILE)
                 {
-                    // Load profile
-                    UnloadProfile();
+                    // Do nothing
                 }
                 else
                 {
@@ -754,8 +756,9 @@ namespace Project_Nested
 
         private void ShowRomInfo()
         {
-            lblMapper.Text = string.Format("Mapper: {0}{1}\n{2} PRG banks\n{3} CHR banks",
+            lblMapper.Text = string.Format("Mapper: {0}{1}{2}\n{3} PRG banks\n{4} CHR banks",
                 injector.ReadMapper(),
+                injector.ReadSubMapper() > 0 ? "." + injector.ReadSubMapper().ToString() : "",
                 injector.mapperSupported ? "" : "\nNot supported",
                 injector.ReadPrgBanks(),
                 injector.ReadChrBanks());

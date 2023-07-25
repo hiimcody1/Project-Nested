@@ -95,15 +95,6 @@ BankEnd_80:
 	// Low level emulation
 	.include	"Project/Interpreter.asm"
 
-	// Sound
-Spc_Code_Start:
-	.fix "Sound"
-	.offsetfrom		0x0400
-	.includeSPC	"Project/Spc700/Spc.asm"
-	.offsetend
-	.fix "Stuff"
-Spc_Code_End:
-
 BankEnd_c1:
 
 	// ---------------------------------------------------------------------------
@@ -122,6 +113,7 @@ BankEnd_c1:
 	.include	"Project/Mappers/Mapper3.asm"
 	.include	"Project/Mappers/Mapper4.asm"
 	.include	"Project/Mappers/Mapper7.asm"
+	.include	"Project/Mappers/Mapper69.asm"
 
 	// Static recompiler must be in LoROM bank
 	.include	"Project/StaticRec.asm"
@@ -132,16 +124,47 @@ BankEnd_c1:
 BankEnd_81:
 
 	// ---------------------------------------------------------------------------
-	// Bank c2-c3: Unrolled indirect JMP and non-native return
+	// Bank c2
 
-	.addr	0xc20000, 0xc3ffff
+	.addr	0xc20000, 0xc2ffff
+
+	.include	"Project/RomCache.asm"
+	.include	"Project/SelfMod.asm"
+
+	// Sound
+Spc_Code_Start:
+	.fix "Sound"
+	.offsetfrom		0x0400
+	.includeSPC	"Project/Spc700/Spc.asm"
+	.includeSPC	"Project/Spc700/Spc.Memory.asm"
+	.includeSPC	"Project/Spc700/Dmc.asm"
+Spc_HeapStart:
+	.offsetend
+	.fix "Stuff"
+Spc_Code_End:
+
+BankEnd_c2:
+
+	// ---------------------------------------------------------------------------
+	// Bank 82
+
+	Include_CrossOver	0xffff
+
+	// Nothing here yet
+
+BankEnd_82:
+
+	// ---------------------------------------------------------------------------
+	// Bank c3-c4: Unrolled indirect JMP and non-native return
+
+	.addr	0xc30000, 0xc4ffff
 JMPiU_Start:
 	.include	"Project/JMPiUnrolled.asm"
 
 	// ---------------------------------------------------------------------------
-	// Bank c4: Static recompiler call tables (no static data)
+	// Bank c5: Static recompiler call tables (no static data)
 
-	.addr	0xc40000, 0xc4ffff
+	.addr	0xc50000, 0xc5ffff
 StaticRec_Tables:
 	// 256 arrays containing 16-bit address and 16-bit length
 	// Each sub array contains (same format as known calls in RAM):
@@ -150,17 +173,17 @@ StaticRec_Tables:
 	// [6] 16-bit recompiler flags
 
 	// ---------------------------------------------------------------------------
-	// Bank c5-c6: Unlinked calls recompiled ahead of time (no static data)
+	// Bank c6-c7: Unlinked calls recompiled ahead of time (no static data)
 
 	// Origins: [0] = Original return, [2] = Original destination
-	.def	StaticRec_Origins		0xc50000
+	.def	StaticRec_Origins		0xc60000
 	// OriginsB: [0] = SNES return, [3] = Temporary validation
-	.def	StaticRec_OriginsB		0xc60000
+	.def	StaticRec_OriginsB		0xc70000
 
 	// ---------------------------------------------------------------------------
 
 	// Final ROM size
-	.finalsize	0x040000
+	.finalsize	0x050000
 
 	// ---------------------------------------------------------------------------
 }

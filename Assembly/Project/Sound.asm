@@ -67,12 +67,21 @@ Sound__Init_Transfer_Feedback:
 		cpx	#_Spc_Code_End-Spc_Code_Start
 		bcc	$-Sound__Init_Transfer
 
+	// If static range c000 and e000 are enabled, transfer the range to the SPC
+	//lda	$=RomInfo_StaticRanges
+	//and	#0xc0
+	//eor	#0xc0
+	//bne	$+b_1
+		jsr	$_Sound__Init_TransferDmcData
+b_1:
+
 	// Execute SPC code, ignore carry
-	adc	#0x02
-	ora	#0x01
 	ldy	#0x0400
 	sty	$0x2142
 	stz	$0x2141
+	txa
+	adc	#0x02
+	ora	#0x01
 	sta	$0x2140
 
 	// Activate audio
@@ -122,22 +131,83 @@ b_trap:
 	Exception	"Audio Initialization Failed{}{}{}HDMA buffers must be initialized before audio."
 
 
+	.mx	0x20
+Sound__Init_TransferDmcData:
+	// Change to the first PRG ROM bank
+	lda	$=RomInfo_StartBankPRG
+	pha
+	plb
+
+	// Send start address
+	ldy	#0xbfff
+	sty	$0x2142
+	// Kick
+	lda	#0x01
+	sta	$0x2141
+	txa
+	adc	#0x02
+	ora	#0x01
+	sta	$0x2140
+
+	// Start at index 0
+	ldx	#0
+	
+	// Wait for kick back from SPC
+b_loop:
+		cmp	$0x2140
+		bne	$-b_loop
+
+	// Transfer static ROM range flags at 0xbfff
+	lda	$=RomInfo_StaticRanges
+	sta	$0x2141
+	txa
+	sta	$0x2140
+
+	// Wait for feedback
+b_loop:
+		cmp	$0x2140
+		bne	$-b_loop
+
+	// Start data transfer
+b_loop:
+		// Load and send byte
+		lda	$0xbfff,x
+		sta	$0x2141
+
+		// Send index LSB
+		txa
+		sta	$0x2140
+
+		// Next index
+		inx
+
+		// Wait for feedback
+b_loop2:
+			cmp	$0x2140
+			bne	$-b_loop2
+
+		// Are we done transferring?
+		cpx	#0x4000
+		bcc	$-b_loop
+	
+	rts
+
+
 Sound__Init_HdmaTable:
 	.def	Sound__Init_HdmaTable_WaitReady		10
 	.macro	Sound__Init_HdmaTable_DataMac
 		// Wait for SPC ready
-		.data8	.Sound__Init_HdmaTable_WaitReady, 0xd7, 0x00
+		.data8	.Sound__Init_HdmaTable_WaitReady, 0xd7, 0x00, 0x00, 0x00
 
-		// Prepare transferring data (0x17 bytes)
-		.data8	0x97
+		// Prepare transferring data (10 iterations)
+		.data8	0x8a
 
 		// Transfer data
-		.data8	0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00
-		.data8	0x04, 0x00, 0x05, 0x00, 0x06, 0x00, 0x07, 0x00
-		.data8	0x08, 0x00, 0x09, 0x00, 0x0a, 0x00, 0x0b, 0x00
-		.data8	0x0c, 0x00, 0x0d, 0x00, 0x0e, 0x00, 0x0f, 0x00
-		.data8	0x10, 0x00, 0x11, 0x00, 0x12, 0x00, 0x13, 0x00
-		.data8	0x14, 0x00, 0x15, 0x00, 0x16, 0x00
+		.data8	0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00
+		.data8	0x04, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00
+		.data8	0x08, 0x00, 0x00, 0x00, 0x0a, 0x00, 0x00, 0x00
+		.data8	0x0c, 0x00, 0x00, 0x00, 0x0e, 0x00, 0x00, 0x00
+		.data8	0x10, 0x00, 0x00, 0x00, 0x12, 0x00, 0x00, 0x00
 	.endm
 
 	// First quarter
@@ -163,7 +233,8 @@ b_2:
 	.data8	0
 Sound__Init_HdmaTable_End:
 
-	.def	Sound__Init_HdmaTable_Start		5
+	.def	Sound__Init_HdmaTable_Start		7
+	.def	Sound__Init_HdmaTable_PreStart	2
 	.def	Sound__Init_HdmaTable_Gap		=b_2-b_1
 
 	// ------------------------------------------------------------------------
@@ -187,8 +258,9 @@ Sound__Update:
 b_1:
 
 	// Update sound
-	smx	#0x20
+	smx	#0x00
 	Sound__UpdateDsp
+	smx	#0x20
 
 	stz	$.Sound_ExtraControl
 
@@ -328,36 +400,27 @@ Sound__EmulateLengthCounter_length_d3_mixed:
 
 	// ------------------------------------------------------------------------
 
-	.mx	0x20
+	.mx	0x00
 	.macro	Sound__UpdateDsp_Mac	Offset
 		lda	$.Sound_NesRegs+{0}
-		sta	$_Sound__Init_HdmaTable_Start+0x0000+{0}*2,x
+		sta	$_Sound__Init_HdmaTable_Start+0x0000+{0}/2*4,x
 	.endm
 	.macro	Sound__UpdateDsp
 		ldx	$.HDMA_Sound_Side
 		Sound__UpdateDsp_Mac	0x00
-		Sound__UpdateDsp_Mac	0x01
 		Sound__UpdateDsp_Mac	0x02
-		Sound__UpdateDsp_Mac	0x03
 		Sound__UpdateDsp_Mac	0x04
-		Sound__UpdateDsp_Mac	0x05
 		Sound__UpdateDsp_Mac	0x06
-		Sound__UpdateDsp_Mac	0x07
 		Sound__UpdateDsp_Mac	0x08
-		Sound__UpdateDsp_Mac	0x09
 		Sound__UpdateDsp_Mac	0x0a
-		Sound__UpdateDsp_Mac	0x0b
 		Sound__UpdateDsp_Mac	0x0c
-		Sound__UpdateDsp_Mac	0x0d
 		Sound__UpdateDsp_Mac	0x0e
-		Sound__UpdateDsp_Mac	0x0f
 		Sound__UpdateDsp_Mac	0x10
-		Sound__UpdateDsp_Mac	0x11
 		Sound__UpdateDsp_Mac	0x12
-		Sound__UpdateDsp_Mac	0x13
-		Sound__UpdateDsp_Mac	0x14
-		Sound__UpdateDsp_Mac	0x15
-		Sound__UpdateDsp_Mac	0x16
+
+		// Exception on last 2 bytes (0x14 is missing but the next 2 are part of "ready")
+		lda	$.Sound_NesRegs+0x15
+		sta	$_Sound__Init_HdmaTable_PreStart+0,x
 	.endm
 
 	// ------------------------------------------------------------------------

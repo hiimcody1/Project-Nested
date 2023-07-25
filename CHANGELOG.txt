@@ -1,4 +1,26 @@
 
+Dev build:
+- Fixed an issue with branch solver in AOT optimization
+
+v1.8:
+- Fixed left column flicker
+- Properly fixed echo buffer write disabled (thanks to ikari_01)
+- Fixed "Reload Both ROMs"
+- Fixed interrupt flag when linking indirect jump or non-native return
+- Added initializer for mappers
+- Selecting "< No profile >" or creating new profile no longer reset settings
+- Added limited DMC support (req. static range c000 & e000 whenever possible)
+- Fixed an issue with writing to $4015 via direct indexed addressing mode
+- Added mapper 69
+- Added self-modifying code to the emulator core based on settings during conversion
+- Added showing submapper number on the exe
+- Fixed bank change when emulating LDA (zp,X)
+- Fixed how CRC32 is calculated
+- Added new COP instructions for patching
+- Added "ROL A" and "ROR A" to the interpreter
+- Added mapper 1 sub-mapper SUROM
+- Added setting to reserve SNES banks for enhancement ROM hacks
+
 v1.7:
 - Fixed "Header skipped file address format" from incrementing each time you press Ok
 - Fixed some registers when using NMI at vblank with non-native return from interrupt (bug from v1.6)

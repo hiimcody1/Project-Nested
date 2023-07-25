@@ -86,10 +86,13 @@ namespace Project_Nested.Injection
         SettingWrapper<byte> ChrBankLut_high => new SettingWrapper<byte>(settings, "ChrBankLut_hi", true);
 
         SettingWrapper<byte> StaticRange => new SettingWrapper<byte>(settings, "MemoryEmulation.StaticRange");
+        SettingWrapper<bool> StaticRange_Sram => new SettingWrapper<bool>(settings, "MemoryEmulation.StaticRange_60");
         SettingWrapper<bool> StaticRange_80 => new SettingWrapper<bool>(settings, "MemoryEmulation.StaticRange_80");
         SettingWrapper<bool> StaticRange_a0 => new SettingWrapper<bool>(settings, "MemoryEmulation.StaticRange_a0");
         SettingWrapper<bool> StaticRange_c0 => new SettingWrapper<bool>(settings, "MemoryEmulation.StaticRange_c0");
         SettingWrapper<bool> StaticRange_e0 => new SettingWrapper<bool>(settings, "MemoryEmulation.StaticRange_e0");
+
+        SettingWrapper<byte> ReservedBanks => new SettingWrapper<byte>(settings, "Enhance.ReservedBanks");
 
         enum PrgBankMirrorMode
         {
@@ -203,28 +206,34 @@ namespace Project_Nested.Injection
             {
                 case 0:
                     WriteBanks(0x4000, 0x2000, PrgBankMirrorMode.None, new byte[] { 0, 0, 0, 0 });
-                    SetInitialBooleans(StaticRange_80, StaticRange_a0, StaticRange_c0, StaticRange_e0);
+                    SetInitialBooleans(StaticRange_Sram, StaticRange_80, StaticRange_a0, StaticRange_c0, StaticRange_e0);
                     break;
                 case 1:
                     WriteBanks(0x4000, 0x1000, PrgBankMirrorMode.DirectMirror, new byte[] { 0, 0, 0xff, 0xff });
                     this.ForcedFlags = ForcedFlagEnum.AbsolutePrgBank | ForcedFlagEnum.IndirectLoad | ForcedFlagEnum.IndirectStore;
+                    SetInitialBooleans(StaticRange_Sram);
                     break;
                 case 2:
                     WriteBanks(0x4000, 0x2000, PrgBankMirrorMode.DirectMirror, new byte[] { 0, 0, 0xff, 0xff });
                     this.ForcedFlags = ForcedFlagEnum.AbsolutePrgBank | ForcedFlagEnum.IndirectLoad | ForcedFlagEnum.IndirectStore;
-                    SetInitialBooleans(StaticRange_c0, StaticRange_e0);
+                    SetInitialBooleans(StaticRange_Sram, StaticRange_c0, StaticRange_e0);
                     break;
                 case 3:
                     WriteBanks(0x4000, 0x2000, PrgBankMirrorMode.None, new byte[] { 0, 0, 0, 0 });
-                    SetInitialBooleans(StaticRange_80, StaticRange_a0, StaticRange_c0, StaticRange_e0);
+                    SetInitialBooleans(StaticRange_Sram, StaticRange_80, StaticRange_a0, StaticRange_c0, StaticRange_e0);
                     break;
                 case 4:
                     WriteBanks(0x2000, 0x400, PrgBankMirrorMode.Cascade, new byte[] { 0, 1, 0xfe, 0xff });
                     this.ForcedFlags = ForcedFlagEnum.AbsolutePrgBank | ForcedFlagEnum.IndirectLoad | ForcedFlagEnum.IndirectStore;
-                    SetInitialBooleans(StaticRange_e0);
+                    SetInitialBooleans(StaticRange_Sram, StaticRange_e0);
                     break;
                 case 7:
                     WriteBanks(0x8000, 0x2000, PrgBankMirrorMode.DirectMirror, new byte[] { 0, 0, 0, 0 });
+                    this.ForcedFlags = ForcedFlagEnum.AbsolutePrgBank | ForcedFlagEnum.IndirectLoad | ForcedFlagEnum.IndirectStore;
+                    SetInitialBooleans(StaticRange_Sram);
+                    break;
+                case 69:
+                    WriteBanks(0x2000, 0x400, PrgBankMirrorMode.Cascade, new byte[] { 0, 1, 2, 0xff });
                     this.ForcedFlags = ForcedFlagEnum.AbsolutePrgBank | ForcedFlagEnum.IndirectLoad | ForcedFlagEnum.IndirectStore;
                     break;
                 default:
@@ -399,14 +408,24 @@ namespace Project_Nested.Injection
                 if (i != 0 && (i & 0x7fff) == 0)
                     NewHiRomBank++;
 
-                // Check for boundaries
-                switch (NewHiRomBank)
+                // Check reserved banks and boundaries
+                while (NewHiRomBank >= ReservedBanks[0] && NewHiRomBank <= ReservedBanks[1])
                 {
-                    case 0x00:
-                        NewHiRomBank = 0x40;
-                        break;
-                    case 0x7e:
-                        throw new IndexOutOfRangeException();
+                    // Zero this reserved bank
+                    for (int u = 0; u < 0x8000; u++)
+                        OutData[NewHiRomBank_FileAddress + u] = 0;
+
+                    // Check for boundaries
+                    switch (NewHiRomBank)
+                    {
+                        case 0x00:
+                            NewHiRomBank = 0x40;
+                            break;
+                        case 0x7e:
+                            throw new IndexOutOfRangeException();
+                    }
+
+                    NewHiRomBank++;
                 }
 
                 // Add reference to this bank
@@ -947,6 +966,11 @@ namespace Project_Nested.Injection
             return mapper;
         }
 
+        public Int32 ReadSubMapper()
+        {
+            return SrcData[8] >> 4;
+        }
+
         public Int32 ReadPrgSize()
         {
             // Incomplete but unlikely to support massive ROMs
@@ -983,7 +1007,8 @@ namespace Project_Nested.Injection
         // --------------------------------------------------------------------
         #region NES ROM Crc32
 
-        public uint GetCrc32() => CRC32.Crc32(0, SrcDataCopy, SrcDataCopy.Length);
+        public uint GetFileCrc32() => CRC32.Crc32(0, SrcDataCopy, SrcDataCopy.Length);
+        public uint GetRomCrc32() => CRC32.Crc32(0, SrcDataCopy, 0x10, SrcDataCopy.Length - 0x10);
 
         #endregion
         // --------------------------------------------------------------------

@@ -30,7 +30,7 @@
 		// 0x02 = Reset square 1
 		// 0x04 = Reset triangle
 		// 0x08 = Reset noise
-		// 0x10 = 
+		// 0x10 = Reset DMC
 		// 0x20 = Mono
 		// 0x40 = Square 0 sweep
 		// 0x80 = Square 1 sweep
@@ -55,7 +55,9 @@
 	.def	temp6					0x6D
 	.def	temp7					0x6E
 	.def	temp8					0x6F
-	.def	old4003					0x70
+	.def	temp9					0x70
+	.def	temp10					0x71
+	.def	old4003					0x72
 
 	.def	sweeptemp1				0x78
 	.def	sweeptemp2				0x79
@@ -82,8 +84,49 @@
 
 	.def	tri_sample              0x8E
 
+	.def	Spc_NewDataEP			0x90
+	.def	Spc_NewDataEP_hi		0x91
+	.def	Dmc_DictionaryTop		0x92		// Next free index for Dmc_Dictionary
+	.def	Spc_FreeInstrument		0x93
+
+	.def	temp_pointer			0x94		// For convert_dmc_samples, maybe something else some day
+	.def	temp_pointer_hi			0x95
+
+	.def	tempYA					0x96		// Used by YA macros
+	.def	tempYA_hi				0x97
+
+	.def	temp_sample0			0x98		// Used to convert DMC samples to BRR samples
+	.def	temp_sample1			0x99
+	.def	temp_sample2			0x9a
+	.def	temp_sample3			0x9b
+	.def	temp_sample4			0x9c
+	.def	temp_sample5			0x9d
+	.def	temp_sample6			0x9e
+	.def	temp_sample7			0x9f
+
+	.def	instrumentP				0xa0		// Returned by get_instrument_pointer
+	.def	instrumentP_hi			0xa1
+
+	.def	Spc_StaticRanges		0xa2		// Copy of RomInfo_StaticRanges
+
+	.def	Spc_HeapStart_TOP		0xbeff		// Spc_HeapStart located at the bottom of this asm file
+	.def	Dmc_Dictionary			0xbf00		// Contains: Address-Length pair, instrument number
+
 //========================================
 
+	.macro	AslYA
+		movw	tempYA, ya
+		addw	ya, tempYA
+	.endm
+
+	.macro	LsrYA
+		mov	tempYA_hi, y
+		lsr	tempYA_hi
+		ror	a
+		mov	y, tempYA
+	.endm
+
+//========================================
 
 start:
         clrp                    // clear direct page flag (DP = 0x0000-0x00FF)
@@ -116,7 +159,9 @@ start:
         mov 0xF3,#0x1F
         mov 0xF2,#0x37
         mov 0xF3,#0x1F
-        
+        mov 0xF2,#0x47
+        mov 0xF3,#0x1F
+
 
         mov 0xF2,#0x24            // sample # for triangle
         mov 0xF3,#triangle_sample_num
@@ -142,6 +187,9 @@ start:
         mov 0xF2,#0x3D            // noise on voice 3
         mov 0xF3,#00001000b
 
+		mov	a, !0xbfff				// Copy static range flags to ZP
+		mov	Spc_StaticRanges, a
+
         call !enable_timer3
 
 		// Zero port 4 for CPU-side optimization
@@ -155,19 +203,23 @@ wait:
         call !check_timers2
 
 wait2:
-        mov a,0xF4
-		cmp	a,0xF4
+        mov x,0xF4
+		movw	ya, 0xF5         // Pre-emptively read ready's 2-byte transfer
+		cmp	x,0xF4               // Make sure port 0 wasn't in the middle of changing
 		bne	wait2
 
-        cmp a,#0xF5              // wait for port 0 to be 0xF5 (Reset)
+        cmp x,#0xF5              // wait for port 0 to be 0xF5 (Reset)
         beq to_reset
-        cmp a,#0xD7              // wait for port 0 to be 0xD7 (CPU ready)
+        cmp x,#0xD7              // wait for port 0 to be 0xD7 (CPU ready)
         bne wait
-        mov 0xF4,a               // reply to CPU with 0xD7 (begin transfer)
+        mov 0xF4,x               // reply to CPU with 0xD7 (begin transfer)
+
+		// Transfer exception for the last 2 bytes
+		movw	sound_ctrl, ya   // sound_ctrl and no4016
 
 		// 63.613 cycles per scanline
 		// Transfer via HDMA must take no more than 66 cycles per byte
-		// Cycles used during transfer: 25 = 3+2 + 3+5+4 + 2+2+4
+		// Cycles used during transfer: 35 = 3+2 + 3+5+4+3+5 + 2+2+2+4
 
         mov x,#0
 xfer:
@@ -176,17 +228,29 @@ xfer:
 
 		mov a,0xF5               // load data on port 1
 		mov 0xF4,x               // reply to CPU on port 0
-		mov 0x40+x,a             // store data at 0x40 - 0x55
+		mov 0x40+x,a             // store data at 0x40 - 0x53 (even)
+		mov a,0xF6               // load data on port 2
+		mov 0x41+x,a             // store data at 0x40 - 0x53 (odd)
 
 		inc x
-		cmp x,#0x17
+		inc x
+		cmp x,#0x14
 		bne xfer
+
+		call !update_dmc
 
 		jmp	!square0
 
 to_reset:
 		mov	0xF1,#0xB0
 		jmp	!0xffc0
+
+//=====================================
+
+spc_communication:
+	// TODO
+
+	ret
 
 //=====================================
 
@@ -1738,7 +1802,7 @@ clear2:
         mov 0xF3,y
         clrc
         adc a,#0x10
-        cmp a,#0x8C
+        cmp a,#0x6C
         bne clear2
 
         mov a,#0x0D
@@ -1815,6 +1879,12 @@ set_directory_loop:
 			mov	!0x0200+x,a
 			dec	x
 			bpl	set_directory_loop
+
+		// Set instrument memory allocation pointers
+		mov	Spc_NewDataEP+0, #Spc_HeapStart
+		mov	Spc_NewDataEP+1, #Spc_HeapStart/0x100
+		mov	Dmc_DictionaryTop, #0
+		mov	Spc_FreeInstrument, #0x20			// Not exact first free
 
         ret
 
@@ -1954,47 +2024,46 @@ noise_freq_table:
 //======================================================================
 
 // 1 sample
-pulse0: .include "Project/Spc700/pl1a-0.asm"
-pulse1: .include "Project/Spc700/pl1a-1.asm"
-pulse2: .include "Project/Spc700/pl1a-2.asm"
-pulse3: .include "Project/Spc700/pl1a-3.asm"
+pulse0: .include "Project/Spc700/Data/pl1a-0.asm"
+pulse1: .include "Project/Spc700/Data/pl1a-1.asm"
+pulse2: .include "Project/Spc700/Data/pl1a-2.asm"
+pulse3: .include "Project/Spc700/Data/pl1a-3.asm"
 
 // 2 samples
-pulse0d: .include "Project/Spc700/pl1-0.asm"
-pulse1d: .include "Project/Spc700/pl1-1.asm"
-pulse2d: .include "Project/Spc700/pl1-2.asm"
-pulse3d: .include "Project/Spc700/pl1-3.asm"
+pulse0d: .include "Project/Spc700/Data/pl1-0.asm"
+pulse1d: .include "Project/Spc700/Data/pl1-1.asm"
+pulse2d: .include "Project/Spc700/Data/pl1-2.asm"
+pulse3d: .include "Project/Spc700/Data/pl1-3.asm"
 
 // 4 samples
-pulse0c: .include "Project/Spc700/pl2-0.asm"
-pulse1c: .include "Project/Spc700/pl2-1.asm"
-pulse2c: .include "Project/Spc700/pl2-2.asm"
-pulse3c: .include "Project/Spc700/pl2-3.asm"
+pulse0c: .include "Project/Spc700/Data/pl2-0.asm"
+pulse1c: .include "Project/Spc700/Data/pl2-1.asm"
+pulse2c: .include "Project/Spc700/Data/pl2-2.asm"
+pulse3c: .include "Project/Spc700/Data/pl2-3.asm"
 
 // 8 samples
-pulse0b: .include "Project/Spc700/pl3-0.asm"
-pulse1b: .include "Project/Spc700/pl3-1.asm"
-pulse2b: .include "Project/Spc700/pl3-2.asm"
-pulse3b: .include "Project/Spc700/pl3-3.asm"
+pulse0b: .include "Project/Spc700/Data/pl3-0.asm"
+pulse1b: .include "Project/Spc700/Data/pl3-1.asm"
+pulse2b: .include "Project/Spc700/Data/pl3-2.asm"
+pulse3b: .include "Project/Spc700/Data/pl3-3.asm"
 
-freqtable: .include "Project/Spc700/snestabl.asm"
-tritable: .include "Project/Spc700/tritabl3.asm"
-
-
-
-//        .include "Project/Spc700/sq2.asm"
-//        .include "Project/Spc700/peeko1.asm"
-
-//        .include "Project/Spc700/puls2y2.asm"
-//        .include "Project/Spc700/pl2.asm"
+freqtable: .include "Project/Spc700/Data/snestabl.asm"
+tritable: .include "Project/Spc700/Data/tritabl3.asm"
 
 
-tri_samp0: .include "Project/Spc700/tri6_sl3.asm"
-tri_samp1: .include "Project/Spc700/tri6_sl2.asm"
-tri_samp2: .include "Project/Spc700/tri6_sl1.asm"
-tri_samp3: .include "Project/Spc700/tri6.asm"
-tri_samp4: .include "Project/Spc700/tri6_sr1.asm"
-tri_samp5: .include "Project/Spc700/tri6_sr2.asm"
-tri_samp6: .include "Project/Spc700/tri6_sr3.asm"
-tri_samp7: .include "Project/Spc700/tri6_sr4.asm"
 
+//        .include "Project/Spc700/Data/sq2.asm"
+//        .include "Project/Spc700/Data/peeko1.asm"
+
+//        .include "Project/Spc700/Data/puls2y2.asm"
+//        .include "Project/Spc700/Data/pl2.asm"
+
+
+tri_samp0: .include "Project/Spc700/Data/tri6_sl3.asm"
+tri_samp1: .include "Project/Spc700/Data/tri6_sl2.asm"
+tri_samp2: .include "Project/Spc700/Data/tri6_sl1.asm"
+tri_samp3: .include "Project/Spc700/Data/tri6.asm"
+tri_samp4: .include "Project/Spc700/Data/tri6_sr1.asm"
+tri_samp5: .include "Project/Spc700/Data/tri6_sr2.asm"
+tri_samp6: .include "Project/Spc700/Data/tri6_sr3.asm"
+tri_samp7: .include "Project/Spc700/Data/tri6_sr4.asm"

@@ -100,6 +100,18 @@ trap__:
 	.endm
 
 
+	.macro	trapvc
+trap__:
+		bvc	$-trap__
+	.endm
+
+
+	.macro	trapvs
+trap__:
+		bvs	$-trap__
+	.endm
+
+
 	.macro	trappl
 trap__:
 		bpl	$-trap__
@@ -390,8 +402,26 @@ This__:
 b_skip__:
 	.endm
 
+	.macro	Mapper_Main					index, destination
+		.pushaddr
+			.addr	=MapperTable_Main+{0}*2
+			.data16	{1}
+		.pulladdr
+	.endm
+
+	.macro	Mapper_Init					index, destination
+		.pushaddr
+			.addr	=MapperTable_Init+{0}*2
+			.data16	{1}
+		.pulladdr
+	.endm
+
 	.macro	IOPort_CompareEnd
 		jmp	$=Recompiler__GetIOAccess_DefaultMapper
+	.endm
+
+	.macro	IOPort_InitEnd
+		rts
 	.endm
 
 	// ---------------------------------------------------------------------------
@@ -399,7 +429,7 @@ b_skip__:
 
 	.def	CoreCall_COUNT		0
 	.macro	CoreCall_DEFINE		name	param
-		// Defines a CoreCall instrutions
+		// Defines a CoreCall instruction
 		.def	{0}				CoreCall_COUNT
 		.def	CoreCall_COUNT	CoreCall_COUNT+1
 		.macro	{0}
@@ -509,6 +539,78 @@ dest__:
 	.def	CoreCallFlag_PushP		0x0008
 	.def	CoreCallFlag_Xba		0x0010
 	.def	CoreCallFlag_Lock		0x0020
+
+	// ---------------------------------------------------------------------------
+	// Self-modifying code related macros
+
+	.def	SelfMod_COUNT		0
+	.macro	SelfMod_DEFINE		name	param
+		// Defines a SelfMod instruction
+		.def	{0}				SelfMod_COUNT
+		.def	SelfMod_COUNT	SelfMod_COUNT+1
+		.macro	{0}
+			.data8	{0}
+			{1}
+		.endm
+	.endm
+
+	.macro	d_24_8	arg0, arg1
+		.data24	{0}
+		.data8	{1}
+	.endm
+
+	.macro	d_24_16	arg0, arg1
+		.data24	{0}
+		.data16	{1}
+	.endm
+
+	.def	SelfMod_Begin	SelfMod_COUNT
+	.def	SelfMod_COUNT	SelfMod_COUNT+1
+	.macro	SelfMod_Begin
+this__:
+		.pushaddr
+			.addr	SelfMod_Table_WritePointer
+			.data8	SelfMod_Begin
+			.data24	this__
+	.endm
+
+	.macro	SelfMod_End
+SelfMod_Table_WritePointer:
+		.pulladdr
+	.endm
+
+	//SelfMod_DEFINE	SelfMod_Begin				".data24 this__"	// Begin SelfMod and sets condition to true
+	//SelfMod_DEFINE	SelfMod_End					""					// End SelfMod
+	SelfMod_DEFINE	SelfMod_EndOfList				""					// Ends SelfMod table, only used in SelfMod.asm
+	SelfMod_DEFINE	SelfMod_Do						".data8 {0}"		// Replace {0} bytes if condition is true
+	SelfMod_DEFINE	SelfMod_Copy8					"d_24_8 {0} {1}"	// Copy 8-bit from address {0} to relative {1} (Must be after "Do")
+	SelfMod_DEFINE	SelfMod_Copy16					"d_24_8 {0} {1}"	// Copy 16-bit from address {0} to relative {1} (Must be after "Do")
+	SelfMod_DEFINE	SelfMod_Copy24					"d_24_8 {0} {1}"	// Copy 24-bit from address {0} to relative {1} (Must be after "Do")
+	SelfMod_DEFINE	SelfMod_Copy32					"d_24_8 {0} {1}"	// Copy 32-bit from address {0} to relative {1} (Must be after "Do")
+	SelfMod_DEFINE	SelfMod_IfSet					"d_24_8 {0} {1}"	// Condition = bit mask {1} at address {0}
+	SelfMod_DEFINE	SelfMod_IfClear					"d_24_8 {0} {1}"	// Condition = not bit mask {1} at address {0}
+	SelfMod_DEFINE	SelfMod_OrSet					"d_24_8 {0} {1}"	// Condition |= bit mask {1} at address {0}
+	SelfMod_DEFINE	SelfMod_OrClear					"d_24_8 {0} {1}"	// Condition |= not bit mask {1} at address {0}
+	SelfMod_DEFINE	SelfMod_AndSet					"d_24_8 {0} {1}"	// Condition &= bit mask {1} at address {0}
+	SelfMod_DEFINE	SelfMod_AndClear				"d_24_8 {0} {1}"	// Condition &= not bit mask {1} at address {0}
+	SelfMod_DEFINE	SelfMod_EorSet					"d_24_8 {0} {1}"	// Condition ^= bit mask {1} at address {0}
+	SelfMod_DEFINE	SelfMod_EorClear				"d_24_8 {0} {1}"	// Condition ^= not bit mask {1} at address {0}
+	SelfMod_DEFINE	SelfMod_IfEq8					"d_24_8 {0} {1}"	// Condition = value at address {0} == {1}
+	SelfMod_DEFINE	SelfMod_IfNe8					"d_24_8 {0} {1}"	// Condition = value at address {0} != {1}
+	SelfMod_DEFINE	SelfMod_OrEq8					"d_24_8 {0} {1}"	// Condition |= value at address {0} == {1}
+	SelfMod_DEFINE	SelfMod_OrNe8					"d_24_8 {0} {1}"	// Condition |= value at address {0} != {1}
+	SelfMod_DEFINE	SelfMod_AndEq8					"d_24_8 {0} {1}"	// Condition &= value at address {0} == {1}
+	SelfMod_DEFINE	SelfMod_AndNe8					"d_24_8 {0} {1}"	// Condition &= value at address {0} != {1}
+	SelfMod_DEFINE	SelfMod_EorEq8					"d_24_8 {0} {1}"	// Condition ^= value at address {0} == {1}
+	SelfMod_DEFINE	SelfMod_EorNe8					"d_24_8 {0} {1}"	// Condition ^= value at address {0} != {1}
+
+	.macro	SelfMod_QuickCopy	var, bitSize, relativeOffset
+		SelfMod_Begin
+		SelfMod_Do	0
+temp__:
+		SelfMod_Copy{1}	{0}, -temp__{2}
+		SelfMod_End
+	.endm
 
 	// ---------------------------------------------------------------------------
 	// Data segmentation related macros

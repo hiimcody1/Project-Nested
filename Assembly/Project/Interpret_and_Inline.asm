@@ -225,8 +225,16 @@ Inline_StoreDirectKnown_{0}:
 Interpret_LoadDirect_Call_60:
 	lda	#0x60
 	sta	$_Memory_NesBank
-	lda	#0xb0
-	//lda	$_Program_Bank_Sram
+	SelfMod_Begin
+	SelfMod_IfSet	RomInfo_MemoryEmulation, RomInfo_MemEmu_StaticSram
+	SelfMod_Do	+b_1
+		lda	#0xb0
+		pha
+		plb
+		rtl
+b_1:
+	SelfMod_End
+	lda	$_Program_Bank_Sram+2
 	pha
 	plb
 	rtl
@@ -277,8 +285,17 @@ Interpret_CmdDirectKnown_Call_60:
 	xba
 	lda	#0x60
 	sta	$_Memory_NesBank
-	lda	#0xb0
-	//lda	$_Program_Bank_Sram
+	SelfMod_Begin
+	SelfMod_IfSet	RomInfo_MemoryEmulation, RomInfo_MemEmu_StaticSram
+	SelfMod_Do	+b_1
+		lda	#0xb0
+		pha
+		plb
+		xba
+		rtl
+b_1:
+	SelfMod_End
+	lda	$_Program_Bank_Sram+2
 	pha
 	plb
 	xba
@@ -339,8 +356,18 @@ Interpret_StoreDirectKnown_Call_60:
 	xba
 	lda	#0x60
 	sta	$_Memory_NesBank
-	lda	#0xb0
-	//lda	$_Program_Bank_Sram
+	SelfMod_Begin
+	SelfMod_IfSet	RomInfo_MemoryEmulation, RomInfo_MemEmu_StaticSram
+	SelfMod_Do	+b_1
+		lda	#0xb0
+		pha
+		plb
+		xba
+		plp
+		rtl
+b_1:
+	SelfMod_End
+	lda	$_Program_Bank_Sram+2
 	pha
 	plb
 	xba
@@ -474,8 +501,16 @@ Interpret_DirectBankCrossing_60:
 	bcs	$+b_1
 		lda	#0x60
 		sta	$_Memory_NesBank
-		lda	#0xb0
-		//lda	$_Program_Bank_Sram
+		SelfMod_Begin
+		SelfMod_IfSet	RomInfo_MemoryEmulation, RomInfo_MemEmu_StaticSram
+		SelfMod_Do	+b_2
+			lda	#0xb0
+			pha
+			plb
+			rtl
+b_2:
+		SelfMod_End
+		lda	$_Program_Bank_Sram+2
 		pha
 		plb
 		rtl
@@ -1639,6 +1674,10 @@ Interpret__Wait4Vblank:
 	php
 	sep	#0x24
 	.mx	0x20
+
+	// Copy content of register 2001 for avoiding left column flicker
+	lda	$_IO_2001
+	sta	$_IO_2001_EarlyValue
 
 	lda	#0xef
 	sta	$_Scanline
