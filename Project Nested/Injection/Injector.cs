@@ -460,12 +460,7 @@ namespace Project_Nested.Injection
             this.ChrBankLut_low.SetArray(ChrBanks_low.ToArray());
             this.ChrBankLut_high.SetArray(ChrBanks_high.ToArray());
         }
-
-#if SYNC_SAVE
         public byte[] FinalChanges(CancellationToken? ct, IProgress<Tuple<string, int, int>> progress)
-#else
-        public async Task<byte[]> FinalChanges(CancellationToken? ct, IProgress<Tuple<string, int, int>> progress)
-#endif
         {
             MergeRoms();
 
@@ -499,11 +494,7 @@ namespace Project_Nested.Injection
             if (calls.Count < GetSetting("EmuCalls.AutoPlayThreshold").ReadInt())
             {
                 var autoplay = new AutoPlay(this, progress);
-#if SYNC_SAVE
                 calls = autoplay.PlaySync();
-#else
-                calls = await autoplay.PlayAsync(ct);
-#endif
                 KnownCallCountChanged?.Invoke();
             }
 
@@ -560,11 +551,7 @@ namespace Project_Nested.Injection
                 {
                     optGroup = new OptimizeGroup(this, calls.Where(e => !excludedCalls.Contains(e)).ToList(),
                         StaticRange.Value, Convert.ToBoolean(settings["StackEmulation.NativeReturn"].GetValue()), progress);
-#if SYNC_SAVE
                     optGroup.OptimizeAllSync();
-#else
-                    await optGroup.OptimizeAllAsync(ct);
-#endif
                     IfCancel();
                 }
 

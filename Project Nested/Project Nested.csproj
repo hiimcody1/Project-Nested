@@ -5,7 +5,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{1428DDD8-6690-42E6-8611-CE86EE7124C7}</ProjectGuid>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Exe</OutputType>
     <RootNamespace>Project_Nested</RootNamespace>
     <AssemblyName>Project_Nested</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
@@ -41,6 +41,9 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject>Project_Nested.CLI</StartupObject>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="Microsoft.VisualBasic" />
     <Reference Include="System" />
@@ -58,6 +61,7 @@
   <ItemGroup>
     <Compile Include="AutoPlay.cs" />
     <Compile Include="ByteArrayExtension.cs" />
+    <Compile Include="CLI.cs" />
     <Compile Include="Crc32.cs" />
     <Compile Include="Emulation\c65816.wdm.cs" />
     <Compile Include="Emulation\IO.cs" />
@@ -83,12 +87,6 @@
     <Compile Include="Optimize\Asm65816Dictionary.cs" />
     <Compile Include="Emulation\c65816.cs" />
     <Compile Include="Emulation\Memory.cs" />
-    <Compile Include="Form1.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Form1.Designer.cs">
-      <DependentUpon>Form1.cs</DependentUpon>
-    </Compile>
     <Compile Include="FrmPatches.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -131,14 +129,10 @@
     <Compile Include="Optimize\OpcodeDescription.cs" />
     <Compile Include="RichTextBoxExtension.cs" />
     <Compile Include="SrmFeedbackReader.cs" />
-    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Injection\SettingsGUI.cs" />
     <Compile Include="StringExtension.cs" />
     <Compile Include="TitledVar.cs" />
-    <EmbeddedResource Include="Form1.resx">
-      <DependentUpon>Form1.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="FrmControllerInput.resx">
       <DependentUpon>FrmControllerInput.cs</DependentUpon>
     </EmbeddedResource>
